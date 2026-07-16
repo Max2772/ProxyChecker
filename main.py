@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import random
 import time
@@ -20,17 +21,25 @@ TIMEOUT: float = 5
 SITES_TO_CHECK: int = 3
 CONCURRENCY: int = 100
 
-SEMAPHORE = asyncio.Semaphore(CONCURRENCY)
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Асинхронный чекер прокси")
+    parser.add_argument("--proxies", type=Path, default=PROXIES_PATH, help="Файл со списком прокси")
+    parser.add_argument("--output", type=Path, default=GOOD_PROXIES_PATH, help="Файл для рабочих прокси")
+    parser.add_argument("--timeout", type=float, default=TIMEOUT, help="Таймаут запроса, сек")
+    parser.add_argument("--sites-to-check", type=int, default=SITES_TO_CHECK, help="Сколько сайтов проверять на каждом прокси")
+    parser.add_argument("--concurrency", type=int, default=CONCURRENCY, help="Сколько прокси проверять одновременно")
+    return parser.parse_args()
 
 
-async def check_proxy(site_url: str, proxy_url: str) -> ProxyResult:
+async def check_proxy(site_url: str, proxy_url: str, semaphore: asyncio.Semaphore, timeout: float) -> ProxyResult:
     start = time.perf_counter()
     try:
-        async with SEMAPHORE:
+        async with semaphore:
             connector = ProxyConnector.from_url(proxy_url)
-            timeout = aiohttp.ClientTimeout(total=TIMEOUT)
+            client_timeout = aiohttp.ClientTimeout(total=timeout)
             headers = {"User-Agent": USER_AGENT}
-            async with aiohttp.ClientSession(connector=connector, timeout=timeout, headers=headers) as session:
+            async with aiohttp.ClientSession(connector=connector, timeout=client_timeout, headers=headers) as session:
                 async with session.get(site_url, ssl=False) as r:
                     dt = (time.perf_counter() - start) * 1000
                     working = r.status < 400
@@ -56,17 +65,20 @@ async def check_proxy(site_url: str, proxy_url: str) -> ProxyResult:
 
 
 async def main():
-    proxies = get_proxies_from_files(PROXIES_PATH)
+    args = parse_args()
+    proxies = get_proxies_from_files(args.proxies)
 
     if not proxies:
-        print(f"Не найдены прокси. Добавьте их в {PROXIES_PATH}")
+        print(f"Не найдены прокси. Добавьте их в {args.proxies}")
         return
+
+    semaphore = asyncio.Semaphore(args.concurrency)
 
     tasks = []
     for proxy in proxies:
-        sites = random.sample(SITES, SITES_TO_CHECK)
+        sites = random.sample(SITES, args.sites_to_check)
         for site in sites:
-            tasks.append(check_proxy(proxy_url=proxy, site_url=site))
+            tasks.append(check_proxy(proxy_url=proxy, site_url=site, semaphore=semaphore, timeout=args.timeout))
 
     results = await asyncio.gather(*tasks)
     results_by_proxy: dict[str, list[ProxyResult]] = defaultdict(list)
@@ -96,7 +108,7 @@ async def main():
     for proxy in BAD_PROXIES:
         print(proxy)
 
-    save_good_proxies(list(GOOD_PROXIES), GOOD_PROXIES_PATH)
+    save_good_proxies(list(GOOD_PROXIES), args.output)
 
 if __name__ == "__main__":
     asyncio.run(main())
