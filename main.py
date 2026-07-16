@@ -16,7 +16,7 @@ PROXIES_PATH: Path = Path("proxies.txt")
 GOOD_PROXIES_PATH: Path = Path("good_proxies.txt")
 
 TIMEOUT: float = 5
-SITES_TO_CHECK: int = 2
+SITES_TO_CHECK: int = 3
 
 
 async def check_proxy(site_url: str, proxy_url: str) -> ProxyResult:

@@ -8,7 +8,13 @@ SITES = [
     "https://www.google.com",
     "https://www.wikipedia.org",
     "https://www.github.com",
+    "https://www.cloudflare.com",
+    "https://www.bing.com",
     "https://httpbin.org/ip",
+    "https://api.ipify.org",
+    "https://icanhazip.com",
+    "https://ifconfig.me",
+    "https://checkip.amazonaws.com",
 ]
 
 USER_AGENT = (
