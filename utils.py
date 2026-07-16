@@ -1,0 +1,42 @@
+from pathlib import Path
+from typing import Optional
+
+from models import ProxyResult, PROXY_PROTOCOLS
+
+
+def output_proxy_result(result: ProxyResult):
+    site = result.site_url
+    if not result.working:
+        print(f"  ✗  {site:<35}  {result.error}")
+    else:
+        print(f"  ✓  {site:<35}  {result.status_code}    ({result.time:.0f} мс)")
+
+
+def get_proxies_from_files(file: str = "proxies.txt") -> Optional[list[str]]:
+    path = Path(file)
+
+    if not path.exists():
+        path.touch()
+
+    proxies = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith(PROXY_PROTOCOLS):
+                proxies.append(line)
+
+    return proxies
+
+
+def save_good_proxies(proxies: list[str], file: str = "good_proxies.txt"):
+    path = Path(file)
+
+    if not path.exists():
+        path.touch()
+        return
+
+    with open(path, "a", encoding="utf-8") as f:
+        for proxy in proxies:
+            f.write(f"{proxy}\n")
