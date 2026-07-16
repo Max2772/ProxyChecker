@@ -1,6 +1,7 @@
 import asyncio
 import random
 import time
+from pathlib import Path
 
 import aiohttp
 from aiohttp_socks import ProxyConnector
@@ -8,13 +9,15 @@ from aiohttp_socks import ProxyConnector
 from utils import output_proxy_result, get_proxies_from_files, save_good_proxies
 from models import ProxyResult, SITES
 
-
-PROXIES: list[str] = []
 GOOD_PROXIES: set[str] = set()
 BAD_PROXIES: set[str] = set()
 
+PROXIES_PATH: Path = Path("proxies.txt")
+GOOD_PROXIES_PATH: Path = Path("good_proxies.txt")
+
 TIMEOUT: float = 5
 SITES_TO_CHECK: int = 2
+
 
 async def check_proxy(site_url: str, proxy_url: str) -> ProxyResult:
     start = time.perf_counter()
@@ -45,10 +48,14 @@ async def check_proxy(site_url: str, proxy_url: str) -> ProxyResult:
 
 
 async def main():
-    PROXIES = get_proxies_from_files()
+    proxies = get_proxies_from_files(PROXIES_PATH)
+
+    if not proxies:
+        print(f"Не найдены прокси. Добавьте их в {PROXIES_PATH}")
+        return
 
     tasks = []
-    for proxy in PROXIES:
+    for proxy in proxies:
         sites = random.sample(SITES, SITES_TO_CHECK)
         for site in sites:
             tasks.append(check_proxy(proxy_url=proxy, site_url=site))
@@ -82,7 +89,7 @@ async def main():
     for proxy in BAD_PROXIES:
         print(proxy)
 
-    save_good_proxies(proxies=list(GOOD_PROXIES))
+    save_good_proxies(list(GOOD_PROXIES), GOOD_PROXIES_PATH)
 
 if __name__ == "__main__":
     asyncio.run(main())

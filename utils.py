@@ -12,9 +12,7 @@ def output_proxy_result(result: ProxyResult):
         print(f"  ✓  {site:<35}  {result.status_code}    ({result.time:.0f} мс)")
 
 
-def get_proxies_from_files(file: str = "proxies.txt") -> Optional[list[str]]:
-    path = Path(file)
-
+def get_proxies_from_files(path: Path) -> Optional[list[str]]:
     if not path.exists():
         path.touch()
 
@@ -30,9 +28,7 @@ def get_proxies_from_files(file: str = "proxies.txt") -> Optional[list[str]]:
     return proxies
 
 
-def save_good_proxies(proxies: list[str], file: str = "good_proxies.txt"):
-    path = Path(file)
-
+def save_good_proxies(proxies: list[str], path: Path):
     if not path.exists():
         path.touch()
         return
