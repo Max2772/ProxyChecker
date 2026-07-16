@@ -7,7 +7,7 @@ import aiohttp
 from aiohttp_socks import ProxyConnector
 
 from utils import output_proxy_result, get_proxies_from_files, save_good_proxies
-from models import ProxyResult, SITES
+from models import ProxyResult, SITES, USER_AGENT
 
 GOOD_PROXIES: set[str] = set()
 BAD_PROXIES: set[str] = set()
@@ -24,15 +24,18 @@ async def check_proxy(site_url: str, proxy_url: str) -> ProxyResult:
     try:
         connector = ProxyConnector.from_url(proxy_url)
         timeout = aiohttp.ClientTimeout(total=TIMEOUT)
-        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+        headers = {"User-Agent": USER_AGENT}
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout, headers=headers) as session:
             async with session.get(site_url, ssl=False) as r:
                 dt = (time.perf_counter() - start) * 1000
+                working = r.status < 400
                 return ProxyResult(
                     proxy_url=proxy_url,
                     site_url=site_url,
-                    working=True,
+                    working=working,
                     status_code=r.status,
-                    time=dt
+                    time=dt,
+                    error=None if working else f"HTTP {r.status}"
                 )
 
     except Exception as e:

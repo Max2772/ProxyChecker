@@ -29,10 +29,5 @@ def get_proxies_from_files(path: Path) -> Optional[list[str]]:
 
 
 def save_good_proxies(proxies: list[str], path: Path):
-    if not path.exists():
-        path.touch()
-        return
-
-    with open(path, "a", encoding="utf-8") as f:
-        for proxy in proxies:
-            f.write(f"{proxy}\n")
+    with open(path, "w", encoding="utf-8") as f:
+        f.writelines(f"{proxy}\n" for proxy in proxies)
