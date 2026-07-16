@@ -1,6 +1,7 @@
 import asyncio
 import random
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import aiohttp
@@ -17,26 +18,30 @@ GOOD_PROXIES_PATH: Path = Path("good_proxies.txt")
 
 TIMEOUT: float = 5
 SITES_TO_CHECK: int = 3
+CONCURRENCY: int = 100
+
+SEMAPHORE = asyncio.Semaphore(CONCURRENCY)
 
 
 async def check_proxy(site_url: str, proxy_url: str) -> ProxyResult:
     start = time.perf_counter()
     try:
-        connector = ProxyConnector.from_url(proxy_url)
-        timeout = aiohttp.ClientTimeout(total=TIMEOUT)
-        headers = {"User-Agent": USER_AGENT}
-        async with aiohttp.ClientSession(connector=connector, timeout=timeout, headers=headers) as session:
-            async with session.get(site_url, ssl=False) as r:
-                dt = (time.perf_counter() - start) * 1000
-                working = r.status < 400
-                return ProxyResult(
-                    proxy_url=proxy_url,
-                    site_url=site_url,
-                    working=working,
-                    status_code=r.status,
-                    time=dt,
-                    error=None if working else f"HTTP {r.status}"
-                )
+        async with SEMAPHORE:
+            connector = ProxyConnector.from_url(proxy_url)
+            timeout = aiohttp.ClientTimeout(total=TIMEOUT)
+            headers = {"User-Agent": USER_AGENT}
+            async with aiohttp.ClientSession(connector=connector, timeout=timeout, headers=headers) as session:
+                async with session.get(site_url, ssl=False) as r:
+                    dt = (time.perf_counter() - start) * 1000
+                    working = r.status < 400
+                    return ProxyResult(
+                        proxy_url=proxy_url,
+                        site_url=site_url,
+                        working=working,
+                        status_code=r.status,
+                        time=dt,
+                        error=None if working else f"HTTP {r.status}"
+                    )
 
     except Exception as e:
         dt = (time.perf_counter() - start) * 1000
@@ -64,25 +69,24 @@ async def main():
             tasks.append(check_proxy(proxy_url=proxy, site_url=site))
 
     results = await asyncio.gather(*tasks)
-    proxy_results = sorted(results, key=lambda proxy: (proxy.proxy_url, proxy.working))
+    results_by_proxy: dict[str, list[ProxyResult]] = defaultdict(list)
 
-    last_proxy = None
-    
-    for result in proxy_results:
-        if result.proxy_url != last_proxy:
-            print("\n")
-            print("=" * 60)
-            print(result.proxy_url)
-            print("-" * 60)
+    for result in results:
+        results_by_proxy[result.proxy_url].append(result)
 
-        output_proxy_result(result)
+    for proxy_url in sorted(results_by_proxy):
+        print("\n")
+        print("=" * 60)
+        print(proxy_url)
+        print("-" * 60)
 
-        if not result.working:
-            BAD_PROXIES.add(result.proxy_url)
-        if result.working and result.proxy_url not in BAD_PROXIES:
-            GOOD_PROXIES.add(result.proxy_url)
+        for result in results_by_proxy[proxy_url]:
+            output_proxy_result(result)
 
-        last_proxy = result.proxy_url
+        if all(result.working for result in results_by_proxy[proxy_url]):
+            GOOD_PROXIES.add(proxy_url)
+        else:
+            BAD_PROXIES.add(proxy_url)
 
     print(f"\n{len(GOOD_PROXIES)} рабочих прокси:")
     for proxy in GOOD_PROXIES:
